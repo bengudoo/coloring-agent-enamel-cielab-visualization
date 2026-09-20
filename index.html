@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Intrinsic characterization in CIELAB space — by enamel thickness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#ebebeb; --scene:#e4e4e4; --panel:rgba(255,255,255,.92); --edge:rgba(0,0,0,.13);
+  --ink:#1b1b1b; --ink-2:#555; --ink-3:#828282; --hair:rgba(0,0,0,.11); --sel:rgba(0,0,0,.08);
+  --shadow:0 1px 3px rgba(0,0,0,.09),0 6px 20px rgba(0,0,0,.08);
+  --tick:#4c4c4c;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#171717; --scene:#222; --panel:rgba(31,31,31,.92); --edge:rgba(255,255,255,.15);
+  --ink:#f1f1f1; --ink-2:#b5b5b5; --ink-3:#8b8b8b; --hair:rgba(255,255,255,.13); --sel:rgba(255,255,255,.11);
+  --shadow:0 1px 3px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.42);
+  --tick:#cacaca;
+}}
+:root[data-theme="dark"]{
+  --bg:#171717; --scene:#222; --panel:rgba(31,31,31,.92); --edge:rgba(255,255,255,.15);
+  --ink:#f1f1f1; --ink-2:#b5b5b5; --ink-3:#8b8b8b; --hair:rgba(255,255,255,.13); --sel:rgba(255,255,255,.11);
+  --shadow:0 1px 3px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.42);
+  --tick:#cacaca;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;
+  overflow:hidden;
+}
+#app{position:fixed;inset:0;display:flex;flex-direction:column;
+     padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+
+/* top bar */
+#bar{flex:0 0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+     padding:9px 14px;border-bottom:1px solid var(--hair)}
+#bar h1{margin:0;font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+#bar .sp{flex:1 1 auto}
+.seg{display:flex;gap:3px;background:var(--sel);border-radius:7px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:11.5px;font-weight:500;
+            padding:5px 11px;border-radius:5px;cursor:pointer}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.11)}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);cursor:pointer;user-select:none}
+.chk input{margin:0;width:14px;height:14px;accent-color:var(--ink-2);cursor:pointer}
+
+/* panels */
+#panes{flex:1 1 auto;display:flex;min-height:0}
+.pane{flex:1 1 0;min-width:0;position:relative;display:flex;flex-direction:column}
+.pane + .pane{border-left:1px solid var(--hair)}
+.pane h2{margin:0;padding:8px 14px 7px;font-size:12px;font-weight:600;color:var(--ink);
+         border-bottom:1px solid var(--hair);display:flex;align-items:baseline;gap:8px}
+.pane h2 em{font-style:normal;font-weight:400;font-size:11px;color:var(--ink-3)}
+.pane .wrap{flex:1 1 auto;min-height:0;position:relative}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+canvas.grabbing{cursor:grabbing}
+
+/* legend */
+#legend{flex:0 0 auto;display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+        padding:9px 14px;border-top:1px solid var(--hair);font-size:11.5px;color:var(--ink-2)}
+#legend .item{display:inline-flex;align-items:center;gap:7px;cursor:pointer;user-select:none;
+              padding:2px 5px;margin:-2px -5px;border-radius:5px}
+#legend .item:hover{background:var(--sel)}
+#legend .item.off{opacity:.32}
+#legend svg{display:block;overflow:visible}
+#legend .note{margin-left:auto;color:var(--ink-3);font-size:10.5px}
+
+#tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .09s;z-index:9;
+     background:var(--panel);border:1px solid var(--edge);border-radius:9px;box-shadow:var(--shadow);
+     padding:7px 10px;font-size:11.5px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#tip.on{opacity:1}
+#tip .t{font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:3px}
+#tip dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:0 12px}
+#tip dt{color:var(--ink-3)}
+#tip dd{margin:0;text-align:right}
+
+button:focus-visible,.chk:focus-visible,.item:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+@media (max-width:820px){
+  #panes{flex-direction:column}
+  .pane + .pane{border-left:0;border-top:1px solid var(--hair)}
+  #bar h1{width:100%}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="bar">
+    <h1>Intrinsic characterization in CIELAB space</h1>
+    <div class="seg" id="zoomSeg">
+      <button data-z="whole" aria-pressed="true">Whole space</button>
+      <button data-z="data" aria-pressed="false">Zoom to specimens</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="spin" checked> Rotate</label>
+    <label class="chk"><input type="checkbox" id="sync" checked> Linked views</label>
+    <label class="chk"><input type="checkbox" id="stems" checked> Read-off grid</label>
+    <span class="sp"></span>
+  </div>
+
+  <div id="panes">
+    <div class="pane">
+      <h2>0.5 mm enamel <em>50 specimens</em></h2>
+      <div class="wrap"><canvas id="cA"></canvas></div>
+    </div>
+    <div class="pane">
+      <h2>1.0 mm enamel <em>50 specimens</em></h2>
+      <div class="wrap"><canvas id="cB"></canvas></div>
+    </div>
+  </div>
+
+  <div id="legend"></div>
+</div>
+<div id="tip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const D = {"pts": [{"i": 1, "k": "OL", "t": "0.5", "L": 74.1, "a": 2.2, "b": 31.5}, {"i": 2, "k": "OL", "t": "0.5", "L": 74.2, "a": 1.2, "b": 29.2}, {"i": 3, "k": "OL", "t": "0.5", "L": 74.7, "a": 1.9, "b": 29.7}, {"i": 4, "k": "OL", "t": "0.5", "L": 75.4, "a": 1.8, "b": 28.3}, {"i": 5, "k": "OL", "t": "0.5", "L": 74.7, "a": 1.3, "b": 31.3}, {"i": 6, "k": "OL", "t": "0.5", "L": 72.9, "a": 2.2, "b": 34.4}, {"i": 7, "k": "OL", "t": "0.5", "L": 73.8, "a": 2.1, "b": 29.3}, {"i": 8, "k": "OL", "t": "0.5", "L": 75.2, "a": 1.8, "b": 31.3}, {"i": 9, "k": "OL", "t": "0.5", "L": 72.3, "a": 2.6, "b": 33.0}, {"i": 10, "k": "OL", "t": "0.5", "L": 72.2, "a": 1.9, "b": 31.0}, {"i": 11, "k": "OL", "t": "1.0", "L": 72.9, "a": 2.3, "b": 24.4}, {"i": 12, "k": "OL", "t": "1.0", "L": 72.4, "a": 2.2, "b": 26.2}, {"i": 13, "k": "OL", "t": "1.0", "L": 71.2, "a": 1.9, "b": 25.7}, {"i": 14, "k": "OL", "t": "1.0", "L": 73.9, "a": 1.6, "b": 24.0}, {"i": 15, "k": "OL", "t": "1.0", "L": 70.3, "a": 2.4, "b": 24.7}, {"i": 16, "k": "OL", "t": "1.0", "L": 72.8, "a": 2.1, "b": 25.5}, {"i": 17, "k": "OL", "t": "1.0", "L": 71.8, "a": 2.3, "b": 25.1}, {"i": 18, "k": "OL", "t": "1.0", "L": 70.9, "a": 2.1, "b": 25.8}, {"i": 19, "k": "OL", "t": "1.0", "L": 71.5, "a": 2.8, "b": 25.5}, {"i": 20, "k": "OL", "t": "1.0", "L": 72.7, "a": 2.4, "b": 26.6}, {"i": 21, "k": "OH", "t": "0.5", "L": 70.5, "a": 4.5, "b": 35.4}, {"i": 22, "k": "OH", "t": "0.5", "L": 66.0, "a": 6.6, "b": 33.8}, {"i": 23, "k": "OH", "t": "0.5", "L": 69.7, "a": 3.4, "b": 30.2}, {"i": 24, "k": "OH", "t": "0.5", "L": 68.0, "a": 5.1, "b": 31.6}, {"i": 25, "k": "OH", "t": "0.5", "L": 63.5, "a": 6.7, "b": 32.8}, {"i": 26, "k": "OH", "t": "0.5", "L": 67.8, "a": 6.2, "b": 35.8}, {"i": 27, "k": "OH", "t": "0.5", "L": 68.7, "a": 5.7, "b": 33.2}, {"i": 28, "k": "OH", "t": "0.5", "L": 62.1, "a": 8.2, "b": 29.5}, {"i": 29, "k": "OH", "t": "0.5", "L": 66.4, "a": 5.9, "b": 31.4}, {"i": 30, "k": "OH", "t": "0.5", "L": 62.2, "a": 7.2, "b": 30.0}, {"i": 31, "k": "OH", "t": "1.0", "L": 68.7, "a": 10.3, "b": 30.2}, {"i": 32, "k": "OH", "t": "1.0", "L": 64.0, "a": 8.6, "b": 30.2}, {"i": 33, "k": "OH", "t": "1.0", "L": 67.3, "a": 4.5, "b": 25.8}, {"i": 34, "k": "OH", "t": "1.0", "L": 68.9, "a": 3.6, "b": 24.2}, {"i": 35, "k": "OH", "t": "1.0", "L": 61.6, "a": 6.8, "b": 24.9}, {"i": 36, "k": "OH", "t": "1.0", "L": 67.4, "a": 4.5, "b": 24.3}, {"i": 37, "k": "OH", "t": "1.0", "L": 66.2, "a": 3.9, "b": 21.5}, {"i": 38, "k": "OH", "t": "1.0", "L": 68.4, "a": 4.1, "b": 24.9}, {"i": 39, "k": "OH", "t": "1.0", "L": 66.0, "a": 4.1, "b": 25.5}, {"i": 40, "k": "OH", "t": "1.0", "L": 64.2, "a": 5.1, "b": 23.8}, {"i": 41, "k": "YL", "t": "0.5", "L": 76.0, "a": 0.1, "b": 35.0}, {"i": 42, "k": "YL", "t": "0.5", "L": 75.8, "a": 0.2, "b": 36.3}, {"i": 43, "k": "YL", "t": "0.5", "L": 77.8, "a": 0.4, "b": 33.8}, {"i": 44, "k": "YL", "t": "0.5", "L": 75.5, "a": -0.1, "b": 33.2}, {"i": 45, "k": "YL", "t": "0.5", "L": 75.4, "a": 0.5, "b": 34.3}, {"i": 46, "k": "YL", "t": "0.5", "L": 75.6, "a": 0.1, "b": 34.4}, {"i": 47, "k": "YL", "t": "0.5", "L": 74.4, "a": 0.2, "b": 31.4}, {"i": 48, "k": "YL", "t": "0.5", "L": 75.9, "a": 0.0, "b": 36.8}, {"i": 49, "k": "YL", "t": "0.5", "L": 76.5, "a": 0.6, "b": 33.6}, {"i": 50, "k": "YL", "t": "0.5", "L": 74.8, "a": 0.9, "b": 35.9}, {"i": 51, "k": "YL", "t": "1.0", "L": 71.4, "a": 0.3, "b": 25.8}, {"i": 52, "k": "YL", "t": "1.0", "L": 75.6, "a": 0.4, "b": 32.8}, {"i": 53, "k": "YL", "t": "1.0", "L": 75.0, "a": 0.6, "b": 30.2}, {"i": 54, "k": "YL", "t": "1.0", "L": 75.2, "a": 0.9, "b": 28.9}, {"i": 55, "k": "YL", "t": "1.0", "L": 75.0, "a": 0.4, "b": 30.8}, {"i": 56, "k": "YL", "t": "1.0", "L": 74.5, "a": 0.5, "b": 27.8}, {"i": 57, "k": "YL", "t": "1.0", "L": 74.5, "a": 1.0, "b": 26.3}, {"i": 58, "k": "YL", "t": "1.0", "L": 74.4, "a": 0.6, "b": 27.2}, {"i": 59, "k": "YL", "t": "1.0", "L": 70.8, "a": 0.8, "b": 24.6}, {"i": 60, "k": "YL", "t": "1.0", "L": 73.7, "a": 1.2, "b": 27.7}, {"i": 61, "k": "YH", "t": "0.5", "L": 71.7, "a": 4.5, "b": 50.0}, {"i": 62, "k": "YH", "t": "0.5", "L": 73.0, "a": 3.2, "b": 41.1}, {"i": 63, "k": "YH", "t": "0.5", "L": 70.2, "a": 5.8, "b": 53.6}, {"i": 64, "k": "YH", "t": "0.5", "L": 73.0, "a": 2.7, "b": 47.8}, {"i": 65, "k": "YH", "t": "0.5", "L": 69.7, "a": -0.1, "b": 44.5}, {"i": 66, "k": "YH", "t": "0.5", "L": 72.3, "a": 2.7, "b": 48.8}, {"i": 67, "k": "YH", "t": "0.5", "L": 68.5, "a": 2.0, "b": 49.1}, {"i": 68, "k": "YH", "t": "0.5", "L": 72.4, "a": 2.7, "b": 39.6}, {"i": 69, "k": "YH", "t": "0.5", "L": 72.7, "a": 2.0, "b": 55.2}, {"i": 70, "k": "YH", "t": "0.5", "L": 72.5, "a": 2.9, "b": 52.0}, {"i": 71, "k": "YH", "t": "1.0", "L": 71.3, "a": 2.3, "b": 31.3}, {"i": 72, "k": "YH", "t": "1.0", "L": 75.4, "a": 0.8, "b": 28.2}, {"i": 73, "k": "YH", "t": "1.0", "L": 72.6, "a": 1.3, "b": 29.8}, {"i": 74, "k": "YH", "t": "1.0", "L": 71.6, "a": 1.2, "b": 27.5}, {"i": 75, "k": "YH", "t": "1.0", "L": 71.6, "a": 3.2, "b": 37.4}, {"i": 76, "k": "YH", "t": "1.0", "L": 70.1, "a": 2.7, "b": 31.0}, {"i": 77, "k": "YH", "t": "1.0", "L": 71.6, "a": 1.6, "b": 26.5}, {"i": 78, "k": "YH", "t": "1.0", "L": 70.9, "a": 2.5, "b": 29.1}, {"i": 79, "k": "YH", "t": "1.0", "L": 68.9, "a": 1.4, "b": 29.9}, {"i": 80, "k": "YH", "t": "1.0", "L": 70.3, "a": 2.7, "b": 31.8}, {"i": 81, "k": "CTRL", "t": "0.5", "L": 78.7, "a": 0.7, "b": 24.6}, {"i": 82, "k": "CTRL", "t": "0.5", "L": 77.5, "a": 0.9, "b": 24.4}, {"i": 83, "k": "CTRL", "t": "0.5", "L": 77.9, "a": 0.8, "b": 25.7}, {"i": 84, "k": "CTRL", "t": "0.5", "L": 78.2, "a": 0.8, "b": 24.6}, {"i": 85, "k": "CTRL", "t": "0.5", "L": 77.0, "a": 0.8, "b": 23.8}, {"i": 86, "k": "CTRL", "t": "0.5", "L": 77.2, "a": 0.9, "b": 24.2}, {"i": 87, "k": "CTRL", "t": "0.5", "L": 76.6, "a": 0.6, "b": 23.4}, {"i": 88, "k": "CTRL", "t": "0.5", "L": 77.9, "a": 0.7, "b": 24.6}, {"i": 89, "k": "CTRL", "t": "0.5", "L": 78.1, "a": 0.8, "b": 25.1}, {"i": 90, "k": "CTRL", "t": "0.5", "L": 77.9, "a": 0.4, "b": 25.3}, {"i": 91, "k": "CTRL", "t": "1.0", "L": 76.9, "a": 0.9, "b": 24.3}, {"i": 92, "k": "CTRL", "t": "1.0", "L": 76.1, "a": 0.9, "b": 23.6}, {"i": 93, "k": "CTRL", "t": "1.0", "L": 77.0, "a": 0.5, "b": 24.3}, {"i": 94, "k": "CTRL", "t": "1.0", "L": 76.5, "a": 0.8, "b": 23.6}, {"i": 95, "k": "CTRL", "t": "1.0", "L": 75.7, "a": 0.6, "b": 22.6}, {"i": 96, "k": "CTRL", "t": "1.0", "L": 76.2, "a": 0.8, "b": 24.1}, {"i": 97, "k": "CTRL", "t": "1.0", "L": 73.7, "a": 0.8, "b": 22.7}, {"i": 98, "k": "CTRL", "t": "1.0", "L": 76.4, "a": 0.7, "b": 23.5}, {"i": 99, "k": "CTRL", "t": "1.0", "L": 76.8, "a": 0.5, "b": 22.8}, {"i": 100, "k": "CTRL", "t": "1.0", "L": 77.1, "a": 0.9, "b": 24.3}], "mid": [72.55, 2.29, 30.34]};
+
+/* colour = coloring agent, shape = amount applied */
+const KEYS=[
+  {k:'YH', col:0xE2C01E, shape:'square',   label:'Yellow, high amount'},
+  {k:'YL', col:0xE2C01E, shape:'circle',   label:'Yellow, low amount'},
+  {k:'OH', col:0xC1762F, shape:'square',   label:'Ochre, high amount'},
+  {k:'OL', col:0xC1762F, shape:'circle',   label:'Ochre, low amount'},
+  {k:'CTRL',col:0x4878B0,shape:'triangle', label:'Control, no coloring agent'}
+];
+const KM={}; KEYS.forEach(k=>KM[k.k]=k);
+const shown={}; KEYS.forEach(k=>shown[k.k]=true);
+
+const SR=60, LC=50;                       // reference sphere: radius 60, centred on L* = 50
+const V3=(L,a,b)=>new THREE.Vector3(a, L-LC, b);   // x=a*, y=L*, z=b*  — one scale for all three
+const MID=V3(D.mid[0],D.mid[1],D.mid[2]);
+
+const css=k=>getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+const hex=k=>new THREE.Color(css(k));
+
+/* ---------- shapes ---------- */
+const R0=1.35;
+const GEO={
+  circle  : new THREE.SphereGeometry(R0,18,14),
+  square  : new THREE.BoxGeometry(R0*1.62,R0*1.62,R0*1.62),
+  triangle: new THREE.TetrahedronGeometry(R0*1.42)
+};
+
+/* ---------- text sprites ---------- */
+function sprite(text,color,px,weight){
+  px=px||42;weight=weight||600;
+  const cv=document.createElement('canvas'),ctx=cv.getContext('2d');
+  const f=weight+' '+px+'px "IBM Plex Sans",system-ui,sans-serif';
+  ctx.font=f; const w=Math.ceil(ctx.measureText(text).width)+18;
+  cv.width=w*2; cv.height=Math.round(px*2.2);
+  const c2=cv.getContext('2d');
+  c2.font=weight+' '+(px*2)+'px "IBM Plex Sans",system-ui,sans-serif';
+  c2.fillStyle=color;c2.textAlign='center';c2.textBaseline='middle';
+  c2.fillText(text,cv.width/2,cv.height/2);
+  const tex=new THREE.CanvasTexture(cv);tex.minFilter=THREE.LinearFilter;tex.anisotropy=4;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,depthWrite:false}));
+  sp.userData.asp=cv.width/cv.height; sp.userData.txt=text;
+  return sp;
+}
+const setH=(sp,h)=>sp.scale.set(h*sp.userData.asp,h,1);
+
+/* ---------- one panel ---------- */
+function makePanel(canvas,thickness){
+  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene=new THREE.Scene();
+  const cam=new THREE.PerspectiveCamera(32,1,.5,3000);
+
+  scene.add(new THREE.AmbientLight(0xffffff,.80));
+  const k1=new THREE.DirectionalLight(0xffffff,.52); k1.position.set(45,80,60); scene.add(k1);
+  const k2=new THREE.DirectionalLight(0xffffff,.20); k2.position.set(-60,-30,-45); scene.add(k2);
+
+  const themed=[];   // things whose colour follows the light/dark theme
+
+  /* reference sphere */
+  const shell=new THREE.Mesh(new THREE.SphereGeometry(SR,48,34),
+    new THREE.MeshPhongMaterial({color:0x8fa4bc,transparent:true,opacity:.05,side:THREE.DoubleSide,depthWrite:false,shininess:4}));
+  const wire=new THREE.Mesh(new THREE.SphereGeometry(SR,24,16),
+    new THREE.MeshBasicMaterial({color:0x8494ab,wireframe:true,transparent:true,opacity:.085}));
+  scene.add(shell,wire);
+
+  /* equator and two meridians read as a globe and give depth */
+  function circle(axis){
+    const p=[],N=128;
+    for(let i=0;i<=N;i++){const t=i/N*Math.PI*2,c=Math.cos(t)*SR,s=Math.sin(t)*SR;
+      p.push(axis===0?new THREE.Vector3(c,0,s):axis===1?new THREE.Vector3(c,s,0):new THREE.Vector3(0,s,c));}
+    const g=new THREE.BufferGeometry().setFromPoints(p);
+    const m=new THREE.Line(g,new THREE.LineBasicMaterial({color:0x8494ab,transparent:true,opacity:.20}));
+    scene.add(m); return m;
+  }
+  circle(0);circle(1);circle(2);
+
+  /* axes as gradients, drawn right through the sphere */
+  function grad(p1,p2,c1h,c2h,op){
+    const pos=[],col=[],c1=new THREE.Color(c1h),c2=new THREE.Color(c2h),N=80;
+    for(let i=0;i<=N;i++){const t=i/N,c=c1.clone().lerp(c2,t);
+      pos.push(p1.x+(p2.x-p1.x)*t,p1.y+(p2.y-p1.y)*t,p1.z+(p2.z-p1.z)*t);col.push(c.r,c.g,c.b);}
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+    const l=new THREE.Line(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:op||.95}));
+    scene.add(l); return l;
+  }
+  grad(V3(0,0,0),      V3(100,0,0),   0x0d0d0d,0xf4f4f4);   // L*  black -> white
+  grad(V3(LC,-SR,0),   V3(LC,SR,0),   0x1f9b3a,0xd22d2d);   // a*  green -> red
+  grad(V3(LC,0,-SR),   V3(LC,0,SR),   0x1b4fd4,0xe3ba00);   // b*  blue  -> yellow
+
+  function cone(pos,dir,colour){
+    const m=new THREE.Mesh(new THREE.ConeGeometry(1.9,5.4,18),new THREE.MeshPhongMaterial({color:colour,shininess:30}));
+    m.position.copy(pos); m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().normalize());
+    scene.add(m);
+  }
+  cone(V3(100,0,0),new THREE.Vector3(0,1,0),0xf4f4f4);
+  cone(V3(LC,SR,0),new THREE.Vector3(1,0,0),0xd22d2d);
+  cone(V3(LC,0,SR),new THREE.Vector3(0,0,1),0xe3ba00);
+
+  /* ticks along each axis */
+  function tick(p,dir,len,colour,op){
+    const g=new THREE.BufferGeometry().setFromPoints([p.clone().sub(dir.clone().multiplyScalar(len)),
+                                                      p.clone().add(dir.clone().multiplyScalar(len))]);
+    scene.add(new THREE.Line(g,new THREE.LineBasicMaterial({color:colour,transparent:true,opacity:op||.5})));
+  }
+  const minorLabels=[];
+  function lab(text,pos,h,minor){
+    const sp=sprite(text,css('--tick'),40,minor?500:600); setH(sp,h||4.2); sp.position.copy(pos);
+    scene.add(sp); themed.push(sp);
+    if(minor){ sp.visible=false; minorLabels.push(sp); }
+    return sp;
+  }
+  // major divisions every 20 units, labelled at all times
+  [20,40,60,80].forEach(v=>{ tick(V3(v,0,0),new THREE.Vector3(1,0,0),1.7,0x9a9a9a); lab(String(v),V3(v,-5.2,0)); });
+  lab('L* 100',V3(105,0,0),5);
+  [-40,-20,20,40].forEach(v=>{ tick(V3(LC,v,0),new THREE.Vector3(0,1,0),1.7,0x9a9a9a); lab(String(v),V3(LC-5.4,v,0)); });
+  lab('+a*',V3(LC,SR+8,0),5); lab('−a*',V3(LC,-SR-8,0),5);
+  [-40,-20,20,40].forEach(v=>{ tick(V3(LC,0,v),new THREE.Vector3(0,1,0),1.7,0x9a9a9a); lab(String(v),V3(LC-5.4,0,v)); });
+  lab('+b*',V3(LC,0,SR+8),5); lab('−b*',V3(LC,0,-SR-8),5);
+
+  // 5-unit subdivisions across the band the specimens actually occupy;
+  // their numbers stay hidden until the view is zoomed in, so the wide shot stays legible
+  const BAND={L:[55,85], a:[-4,14], b:[15,60]};
+  function minors(from,to,step,labelEvery,skip,onAxis,markDir,labPos){
+    for(let v=Math.ceil(from/step)*step; v<=to+1e-9; v+=step){
+      if(Math.abs(v%skip)<1e-9) continue;
+      tick(onAxis(v),markDir,1.0,0xa8a8a8,.34);
+      if(Math.abs(v%labelEvery)<1e-9) lab(String(v),labPos(v),2.9,true);
+    }
+  }
+  minors(BAND.L[0],BAND.L[1],5,10,20,v=>V3(v,0,0),  new THREE.Vector3(1,0,0), v=>V3(v,-3.6,0));
+  minors(BAND.a[0],BAND.a[1],2, 4,20,v=>V3(LC,v,0), new THREE.Vector3(0,1,0), v=>V3(LC-3.7,v,0));
+  minors(BAND.b[0],BAND.b[1],5,10,20,v=>V3(LC,0,v), new THREE.Vector3(0,1,0), v=>V3(LC-3.7,0,v));
+
+  /* specimens for this thickness */
+  const pts=new THREE.Group(); scene.add(pts);
+  const meshes=[], byKey={};
+  D.pts.filter(p=>p.t===thickness).forEach(p=>{
+    const s=KM[p.k];
+    const m=new THREE.Mesh(GEO[s.shape],new THREE.MeshPhongMaterial({
+      color:s.col,shininess:44,specular:0x3a3a3a}));
+    m.position.copy(V3(p.L,p.a,p.b));
+    if(s.shape==='triangle') m.rotation.set(-0.62,0.42,0);
+    m.userData=p; pts.add(m); meshes.push(m);
+    (byKey[p.k]=byKey[p.k]||[]).push(p);
+  });
+
+  /* stems down to the a*b* plane, over a grid you can count squares on */
+  const drops=new THREE.Group(); scene.add(drops);
+  const dropByKey={};
+  Object.keys(byKey).forEach(k=>{
+    const v=[];
+    byKey[k].forEach(p=>{ v.push(V3(p.L,p.a,p.b), V3(LC,p.a,p.b)); });
+    const g=new THREE.BufferGeometry().setFromPoints(v);
+    const l=new THREE.LineSegments(g,new THREE.LineBasicMaterial({
+      color:KM[k].col,transparent:true,opacity:.45}));
+    drops.add(l); dropByKey[k]=l;
+  });
+
+  const grid=new THREE.Group(); scene.add(grid);
+  {
+    const A0=-4,A1=14,B0=15,B1=60,SA=2,SB=5, seg=[], bold=[];
+    for(let a=A0;a<=A1+1e-9;a+=SA){ (Math.abs(a%10)<1e-9?bold:seg).push(V3(LC,a,B0),V3(LC,a,B1)); }
+    for(let b=B0;b<=B1+1e-9;b+=SB){ (Math.abs(b%20)<1e-9?bold:seg).push(V3(LC,A0,b),V3(LC,A1,b)); }
+    const mk=(pts,op,w)=>{
+      const g=new THREE.BufferGeometry().setFromPoints(pts);
+      grid.add(new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0x8e8e8e,transparent:true,opacity:op})));
+    };
+    mk(seg,.20); mk(bold,.42);
+    const ta=sprite('a*',css('--tick'),42,700); setH(ta,3.4);
+    ta.position.copy(V3(LC,(A0+A1)/2,B0-4.2)); grid.add(ta); themed.push(ta);
+    const tb=sprite('b*',css('--tick'),42,700); setH(tb,3.4);
+    tb.position.copy(V3(LC,A0-4.0,(B0+B1)/2)); grid.add(tb); themed.push(tb);
+  }
+
+  return {renderer,scene,cam,canvas,meshes,themed,pts,minorLabels,drops,dropByKey,grid};
+}
+
+const A=makePanel(document.getElementById('cA'),'0.5');
+const B=makePanel(document.getElementById('cB'),'1.0');
+const PANES=[A,B];
+
+/* ---------- camera ---------- */
+const VIEWS={whole:{r:215,target:new THREE.Vector3(0,0,0)},
+             data :{r:78, target:MID.clone()}};
+let zoom='whole';
+const camS={theta:-0.70,phi:1.10,r:VIEWS.whole.r};
+const target=VIEWS.whole.target.clone();
+const camB={theta:camS.theta,phi:camS.phi,r:camS.r};
+const targetB=target.clone();
+let linked=true;
+
+function place(pane,s,t){
+  const {theta,phi,r}=s;
+  pane.cam.position.set(t.x+r*Math.sin(phi)*Math.sin(theta),
+                        t.y+r*Math.cos(phi),
+                        t.z+r*Math.sin(phi)*Math.cos(theta));
+  pane.cam.up.set(0,1,0); pane.cam.lookAt(t);
+}
+function applyCams(){ place(A,camS,target); place(B, linked?camS:camB, linked?target:targetB); }
+
+function resize(){
+  PANES.forEach(p=>{
+    const w=p.canvas.clientWidth||1, h=p.canvas.clientHeight||1;
+    p.renderer.setSize(w,h,false);
+    p.cam.aspect=w/h; p.cam.updateProjectionMatrix();
+  });
+  applyCams();
+}
+addEventListener('resize',resize);
+
+function setZoom(z){
+  zoom=z;
+  camS.r=VIEWS[z].r; camB.r=VIEWS[z].r;
+  target.copy(VIEWS[z].target); targetB.copy(VIEWS[z].target);
+  applyCams();
+}
+
+/* drag / wheel / pinch, per panel */
+PANES.forEach((pane,idx)=>{
+  const cv=pane.canvas;
+  const S=()=> (idx===0||linked)?camS:camB;
+  const T=()=> (idx===0||linked)?target:targetB;
+  let drag=false,pan=false,last={x:0,y:0},pinch=null;
+
+  cv.addEventListener('pointerdown',e=>{
+    drag=true; pan=e.shiftKey||e.button===2; last={x:e.clientX,y:e.clientY};
+    cv.setPointerCapture(e.pointerId); cv.classList.add('grabbing');
+  });
+  cv.addEventListener('pointerup',()=>{drag=false;cv.classList.remove('grabbing');});
+  cv.addEventListener('contextmenu',e=>e.preventDefault());
+  cv.addEventListener('pointermove',e=>{
+    if(!drag){ hover(e,pane); return; }
+    const dx=e.clientX-last.x,dy=e.clientY-last.y; last={x:e.clientX,y:e.clientY};
+    const s=S(),t=T();
+    if(pan){
+      const f=s.r*0.0021;
+      const right=new THREE.Vector3().setFromMatrixColumn(pane.cam.matrix,0);
+      const up=new THREE.Vector3().setFromMatrixColumn(pane.cam.matrix,1);
+      t.addScaledVector(right,-dx*f).addScaledVector(up,dy*f);
+    }else{
+      s.theta-=dx*0.0072;
+      s.phi=Math.max(0.05,Math.min(Math.PI-0.05,s.phi+dy*0.0072));
+    }
+    applyCams();
+  });
+  cv.addEventListener('pointerleave',()=>tip.classList.remove('on'));
+  cv.addEventListener('wheel',e=>{
+    e.preventDefault(); const s=S();
+    s.r=Math.max(16,Math.min(700,s.r*Math.exp(e.deltaY*0.0013))); applyCams();
+  },{passive:false});
+  cv.addEventListener('touchstart',e=>{if(e.touches.length===2)pinch=d2(e);},{passive:true});
+  cv.addEventListener('touchmove',e=>{
+    if(e.touches.length===2&&pinch){
+      const d=d2(e),s=S(); s.r=Math.max(16,Math.min(700,s.r*(pinch/d)));
+      pinch=d; applyCams(); e.preventDefault();
+    }
+  },{passive:false});
+  cv.addEventListener('touchend',()=>pinch=null,{passive:true});
+});
+function d2(e){const a=e.touches[0],b=e.touches[1];return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);}
+
+/* ---------- hover ---------- */
+const tip=document.getElementById('tip'), ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+function hover(e,pane){
+  const r=pane.canvas.getBoundingClientRect();
+  ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,pane.cam);
+  const hit=ray.intersectObjects(pane.meshes.filter(m=>m.visible),false)[0];
+  if(!hit){ tip.classList.remove('on'); return; }
+  const p=hit.object.userData, s=KM[p.k];
+  tip.innerHTML=`<div class="t">${swatch(s,11)}${s.label}</div>`+
+    `<dl><dt>Specimen</dt><dd>${p.i}</dd><dt>L*</dt><dd>${p.L.toFixed(1)}</dd>`+
+    `<dt>a*</dt><dd>${p.a.toFixed(1)}</dd><dt>b*</dt><dd>${p.b.toFixed(1)}</dd></dl>`;
+  let x=e.clientX+14,y=e.clientY+14;
+  if(x+190>innerWidth) x=e.clientX-190;
+  if(y+110>innerHeight) y=e.clientY-115;
+  tip.style.left=x+'px'; tip.style.top=y+'px'; tip.classList.add('on');
+}
+
+/* ---------- legend ---------- */
+function swatch(s,size){
+  const c='#'+s.col.toString(16).padStart(6,'0'), n=size||13, h=n, w=n;
+  const stroke='rgba(0,0,0,.42)';
+  let shape;
+  if(s.shape==='circle')   shape=`<circle cx="${w/2}" cy="${h/2}" r="${n*0.42}" fill="${c}" stroke="${stroke}"/>`;
+  else if(s.shape==='square') shape=`<rect x="${n*0.13}" y="${n*0.13}" width="${n*0.74}" height="${n*0.74}" fill="${c}" stroke="${stroke}"/>`;
+  else shape=`<polygon points="${w/2},${n*0.1} ${n*0.9},${n*0.86} ${n*0.1},${n*0.86}" fill="${c}" stroke="${stroke}"/>`;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${shape}</svg>`;
+}
+const legend=document.getElementById('legend');
+KEYS.forEach(s=>{
+  const el=document.createElement('span');
+  el.className='item'; el.tabIndex=0; el.dataset.k=s.k;
+  el.innerHTML=swatch(s)+'<span>'+s.label+'</span>';
+  const t=()=>{ shown[s.k]=!shown[s.k]; el.classList.toggle('off',!shown[s.k]); applyShown(); };
+  el.addEventListener('click',t);
+  el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();t();}});
+  legend.appendChild(el);
+});
+const note=document.createElement('span');
+note.className='note';
+note.textContent='Squares high amount, circles low · one shared scale on all three axes · grid squares are 2 of a* by 5 of b*';
+legend.appendChild(note);
+
+function applyShown(){
+  PANES.forEach(p=>{
+    p.meshes.forEach(m=>m.visible=shown[m.userData.k]);
+    Object.keys(p.dropByKey).forEach(k=>p.dropByKey[k].visible=shown[k]);
+  });
+}
+
+/* ---------- controls ---------- */
+function segment(id,attr,fn){
+  const el=document.getElementById(id);
+  el.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    [...el.querySelectorAll('button')].forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+    fn(b.getAttribute(attr));
+  });
+}
+segment('zoomSeg','data-z',setZoom);
+let spin=!matchMedia('(prefers-reduced-motion:reduce)').matches;
+document.getElementById('spin').checked=spin;
+document.getElementById('spin').addEventListener('change',e=>spin=e.target.checked);
+function setGrid(on){ PANES.forEach(p=>{p.drops.visible=on; p.grid.visible=on;}); }
+document.getElementById('stems').addEventListener('change',e=>setGrid(e.target.checked));
+document.getElementById('sync').addEventListener('change',e=>{
+  linked=e.target.checked;
+  if(linked){ camB.theta=camS.theta;camB.phi=camS.phi;camB.r=camS.r; targetB.copy(target); }
+  applyCams();
+});
+
+/* ---------- theme ---------- */
+function paint(){
+  const bg=hex('--scene'); PANES.forEach(p=>p.scene.background=bg);
+  PANES.forEach(p=>p.themed.forEach(sp=>{
+    const old=sp.material.map, ns=sprite(sp.userData.txt,css('--tick'),40,600);
+    sp.material.map=ns.material.map; sp.material.needsUpdate=true; if(old) old.dispose();
+  }));
+}
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>setTimeout(paint,30));
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(paint);
+
+/* ---------- level of detail: the 5-unit numbers only when they can be read ---------- */
+let lastLod=null;
+function updateLod(){
+  const near = Math.min(camS.r, linked?camS.r:camB.r) < 130;
+  if(near===lastLod) return; lastLod=near;
+  PANES.forEach(p=>p.minorLabels.forEach(sp=>sp.visible=near));
+}
+
+/* ---------- loop ---------- */
+resize(); paint(); applyShown(); applyCams(); updateLod();
+setGrid(document.getElementById('stems').checked);
+let t0=performance.now();
+(function loop(now){
+  requestAnimationFrame(loop);
+  const dt=Math.min((now-t0)/1000,0.05); t0=now;
+  if(spin){ camS.theta+=dt*0.16; if(!linked) camB.theta+=dt*0.16; applyCams(); }
+  updateLod();
+  PANES.forEach(p=>p.renderer.render(p.scene,p.cam));
+})(performance.now());
+</script>
+</body>
+</html>
